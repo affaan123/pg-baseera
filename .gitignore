@@ -1,0 +1,18 @@
+# Environment — never commit real credentials
+.env
+
+# Go binary
+pg-monitor-bin
+
+# pgBadger generated reports
+pgbadger/reports/*.html
+
+# PostgreSQL logs
+postgres/logs/*.log
+
+# Docker volumes (if accidentally created locally)
+postgres/data/
+
+# OS
+.DS_Store
+Thumbs.db

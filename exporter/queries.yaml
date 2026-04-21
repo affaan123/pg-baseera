@@ -1,0 +1,57 @@
+pg_stat_statements_top:
+  query: |
+    SELECT
+      LEFT(query, 80) AS query,
+      calls,
+      total_exec_time AS total_ms,
+      mean_exec_time  AS mean_ms,
+      rows
+    FROM pg_stat_statements
+    ORDER BY total_exec_time DESC
+    LIMIT 10
+  metrics:
+    - query:
+        usage: LABEL
+        description: Query text (truncated)
+    - calls:
+        usage: COUNTER
+        description: Number of times executed
+    - total_ms:
+        usage: GAUGE
+        description: Total execution time ms
+    - mean_ms:
+        usage: GAUGE
+        description: Mean execution time ms
+    - rows:
+        usage: COUNTER
+        description: Total rows processed
+
+pg_table_bloat:
+  query: |
+    SELECT
+      schemaname,
+      tablename,
+      pg_total_relation_size(schemaname||'.'||tablename) AS total_bytes,
+      pg_relation_size(schemaname||'.'||tablename)       AS table_bytes,
+      n_dead_tup,
+      n_live_tup
+    FROM pg_stat_user_tables
+  metrics:
+    - schemaname:
+        usage: LABEL
+        description: Schema name
+    - tablename:
+        usage: LABEL
+        description: Table name
+    - total_bytes:
+        usage: GAUGE
+        description: Total table size including indexes
+    - table_bytes:
+        usage: GAUGE
+        description: Table size excluding indexes
+    - n_dead_tup:
+        usage: GAUGE
+        description: Dead tuples (bloat indicator)
+    - n_live_tup:
+        usage: GAUGE
+        description: Live tuples

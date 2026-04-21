@@ -1,0 +1,197 @@
+# ============================================================
+#  pg-baseera — PostgreSQL Monitoring Stack
+#  https://github.com/maffaan/pg-baseera
+#
+#  Mode A (default): Full stack with internal PostgreSQL
+#    cp .env.example .env && ./start.sh
+#
+#  Mode B: Monitor your existing PostgreSQL
+#    Set EXTERNAL_DB_DSN in .env, then: ./start.sh
+# ============================================================
+
+networks:
+  pg-monitor-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+
+services:
+
+  # PostgreSQL (Mode A only)
+  # Always defined so pgbench can depend on it.
+  # In Mode B it will simply not be used (exporter skips it).
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-appdb}
+      POSTGRES_USER:     ${POSTGRES_USER:-pgadmin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - ./postgres/logs:/var/log/postgresql
+    command: >
+      postgres
+        -c config_file=/etc/postgresql/postgresql.conf
+        -c hba_file=/etc/postgresql/pg_hba.conf
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - pg-monitor-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pgadmin} -d ${POSTGRES_DB:-appdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # postgres_exporter
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: postgres-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: >-
+        ${EXTERNAL_DB_DSN:-postgresql://${EXPORTER_USER:-pgexporter}:${EXPORTER_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-appdb}?sslmode=disable}
+      PG_EXPORTER_EXTEND_QUERY_PATH: /etc/exporter/queries.yaml
+    volumes:
+      - ./exporter/queries.yaml:/etc/exporter/queries.yaml:ro
+    ports:
+      - "${EXPORTER_PORT:-9187}:9187"
+    networks:
+      - pg-monitor-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+
+  # Node Exporter
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
+    networks:
+      - pg-monitor-net
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'
+      - '--web.enable-lifecycle'
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - pg-monitor-net
+    depends_on:
+      - postgres-exporter
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER:     ${GF_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-changeme}
+      GF_USERS_ALLOW_SIGN_UP:     "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/postgresql.json
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    networks:
+      - pg-monitor-net
+    depends_on:
+      - prometheus
+
+  # pgBadger
+  pgbadger:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pgbadger
+    restart: unless-stopped
+    environment:
+      PGBADGER_INTERVAL: ${PGBADGER_INTERVAL:-3600}
+    volumes:
+      - ./postgres/logs:/logs:ro
+      - ./pgbadger/reports:/reports
+    ports:
+      - "${PGBADGER_PORT:-8080}:8080"
+    networks:
+      - pg-monitor-net
+
+  # pgBench init (pgbench profile only)
+  pgbench-init:
+    image: postgres:16-alpine
+    container_name: pgbench-init
+    restart: "no"
+    profiles: ["pgbench"]
+    environment:
+      PGPASSWORD:    ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_USER: ${POSTGRES_USER:-pgadmin}
+      POSTGRES_DB:   ${POSTGRES_DB:-appdb}
+      PGBENCH_SCALE: ${PGBENCH_SCALE:-10}
+    networks:
+      - pg-monitor-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo 'Waiting for postgres...'
+        until pg_isready -h postgres -U $$POSTGRES_USER; do sleep 2; done
+        echo 'Initializing pgbench schema...'
+        pgbench -h postgres -U $$POSTGRES_USER -d $$POSTGRES_DB --initialize --scale=$$PGBENCH_SCALE --quiet
+        echo 'pgbench schema ready.'
+
+  # pgBench load (pgbench profile only)
+  pgbench-load:
+    image: postgres:16-alpine
+    container_name: pgbench-load
+    restart: unless-stopped
+    profiles: ["pgbench"]
+    environment:
+      POSTGRES_USER:          ${POSTGRES_USER:-pgadmin}
+      POSTGRES_PASSWORD:      ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB:            ${POSTGRES_DB:-appdb}
+      PGBENCH_CLIENTS:        ${PGBENCH_CLIENTS:-20}
+      PGBENCH_THREADS:        ${PGBENCH_THREADS:-4}
+      PGBENCH_BURST_DURATION: ${PGBENCH_BURST_DURATION:-60}
+      PGBENCH_IDLE_DURATION:  ${PGBENCH_IDLE_DURATION:-240}
+    volumes:
+      - ./postgres/pgbench_load.sh:/pgbench_load.sh:ro
+    networks:
+      - pg-monitor-net
+    depends_on:
+      pgbench-init:
+        condition: service_completed_successfully
+    entrypoint: ["sh", "/pgbench_load.sh"]
