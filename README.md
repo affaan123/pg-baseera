@@ -14,7 +14,7 @@ Whether you are running a SaaS product, processing financial transactions, servi
 - [Why pg-baseera?](#why-pg-baseera)
 - [Business Use Cases](#business-use-cases)
 - [What You Get Out of the Box](#what-you-get-out-of-the-box)
-- [Stack](#stack)
+- [Technology Stack](#technology-stack)
 - [Architecture](#architecture)
 - [Project Structure](#project-structure)
 - [Prerequisites](#prerequisites)
