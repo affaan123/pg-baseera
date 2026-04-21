@@ -19,8 +19,8 @@ Whether you are running a SaaS product, processing financial transactions, servi
 - [Project Structure](#project-structure)
 - [Prerequisites](#prerequisites)
 - [Quickstart](#quickstart)
-  - [Mode A: Full stack](#mode-a--full-stack-includes-postgresql)
-  - [Mode B: External PostgreSQL](#mode-b--monitor-your-existing-postgresql)
+  - [Mode A: Full stack](#mode-a-full-stack-includes-postgresql)
+  - [Mode B: External PostgreSQL](#mode-b-monitor-your-existing-postgresql)
 - [Accessing Services](#accessing-services)
 - [Go Status Monitor API](#go-status-monitor-api)
 - [pgBench Load Testing](#pgbench-load-testing)
@@ -205,7 +205,7 @@ go build -o pg-monitor-bin ./monitor.go
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/your-username/pg-baseera.git
+git clone https://github.com/affaan123/pg-baseera.git
 cd pg-baseera
 
 # 2. Prepare your existing database
@@ -235,10 +235,10 @@ go build -o pg-monitor-bin ./monitor.go
 | Service | URL | Default credentials |
 |---|---|---|
 | Grafana | http://localhost:3000 | admin / (your .env value) |
-| Prometheus | http://localhost:9090 | — |
-| pgBadger reports | http://localhost:8080 | — |
-| Go status dashboard | http://localhost:9999 | — |
-| postgres_exporter metrics | http://localhost:9187/metrics | — |
+| Prometheus | http://localhost:9090 | NA |
+| pgBadger reports | http://localhost:8080 | NA |
+| Go status dashboard | http://localhost:9999 | NA |
+| postgres_exporter metrics | http://localhost:9187/metrics | NA |
 
 ---
 
@@ -266,7 +266,7 @@ curl http://localhost:9999/api/reports
 ## pgBench Load Testing
 
 pgBench simulates a realistic TPC-B workload against PostgreSQL.
-It runs in **burst mode** by default — heavy load for 60s, idle for 240s.
+It runs in **burst mode** by default as heavy load for 60s followed by idle for 240s.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -298,7 +298,7 @@ docker exec postgres psql -U pgadmin -c "SELECT pg_reload_conf();"
 
 ---
 
-## Customizing Ports
+## Ports Customization
 
 All ports are configurable in `.env`:
 
@@ -326,7 +326,7 @@ Only add genuinely new queries to avoid metric conflicts.
 
 ---
 
-## Stopping
+## Shutting down the stack
 
 ```bash
 # Stop all containers (preserve data)
@@ -340,7 +340,7 @@ Only add genuinely new queries to avoid metric conflicts.
 
 ## Troubleshooting
 
-### pg_up shows 0 — exporter cannot connect to PostgreSQL
+### pg_up shows 0: exporter cannot connect to PostgreSQL
 
 **Symptom:** `curl http://localhost:9187/metrics | grep pg_up` returns `pg_up 0`
 
@@ -415,7 +415,7 @@ curl -s 'http://localhost:9090/api/v1/query?query=pg_stat_database_numbackends{d
 
 **Causes and fixes:**
 
-1. **Metric name conflicts** — custom `queries.yaml` conflicts with built-in
+1. **Metric name conflicts**: custom `queries.yaml` conflicts with built-in
    postgres_exporter metrics. Check for errors:
    ```bash
    curl http://localhost:9187/metrics | head -20
@@ -426,10 +426,10 @@ curl -s 'http://localhost:9090/api/v1/query?query=pg_stat_database_numbackends{d
    docker compose restart postgres-exporter
    ```
 
-2. **Prometheus not scraped yet** — wait 30s after startup before
+2. **Prometheus not scraped yet**: wait 30s after startup before
    expecting data in Grafana.
 
-3. **Time range too narrow** — in Grafana set the time range to
+3. **Time range too narrow**: in Grafana set the time range to
    `Last 1 hour`.
 
 ---
@@ -480,4 +480,4 @@ If you see this error it means an old init SQL file is present. Run:
 
 ## License
 
-MIT © pg-baseera contributors
+MIT © pg-baseera contributors: see [LICENSE](./LICENSE) for full text
