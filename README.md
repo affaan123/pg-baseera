@@ -188,8 +188,9 @@ cp .env.example .env
 # Edit .env and change all 'changeme' passwords
 
 # 3. Fix log directory permissions
+mkdir -p postgres/log
 sudo chown 999:999 postgres/logs
-sudo chmod 775 postgres/logs
+sudo chmod 777 postgres/logs
 
 # 4. Build the Go status monitor
 go build -o pg-monitor-bin ./monitor.go
