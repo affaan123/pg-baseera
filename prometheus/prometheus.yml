@@ -2,7 +2,16 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
-    monitor: 'pg-monitor'
+    monitor: 'pg-baseera'
+
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+rule_files:
+  - /etc/prometheus/alert_rules.yml
 
 scrape_configs:
   - job_name: 'prometheus'
@@ -19,3 +28,21 @@ scrape_configs:
     static_configs:
       - targets: ['node-exporter:9100']
     scrape_interval: 15s
+
+  - job_name: 'rds_staging_primary'
+    static_configs:
+      - targets: ['rds-exporter-staging-primary:9187']
+        labels:
+          env: 'staging'
+          role: 'primary'
+          instance: 'staging-rds-pg'
+    scrape_interval: 30s
+
+  - job_name: 'rds_staging_replica'
+    static_configs:
+      - targets: ['rds-exporter-staging-replica:9187']
+        labels:
+          env: 'staging'
+          role: 'replica'
+          instance: 'staging-rds-pg-replica'
+    scrape_interval: 30s

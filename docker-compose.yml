@@ -97,6 +97,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./rds/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -120,10 +121,16 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-changeme}
       GF_USERS_ALLOW_SIGN_UP:     "false"
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/postgresql.json
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_REGION:-eu-central-1}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./rds/provisioning/datasources/cloudwatch.yml:/etc/grafana/provisioning/datasources/cloudwatch.yml:ro
+      - ./rds/provisioning/dashboards/rds_dashboards.yml:/etc/grafana/provisioning/dashboards/rds_dashboards.yml:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - ./rds/dashboards:/var/lib/grafana/dashboards/rds
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
     networks:
@@ -145,6 +152,22 @@ services:
       - ./pgbadger/reports:/reports
     ports:
       - "${PGBADGER_PORT:-8080}:8080"
+    networks:
+      - pg-monitor-net
+
+  # Alertmanager
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./rds/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
     networks:
       - pg-monitor-net
 
@@ -195,3 +218,54 @@ services:
       pgbench-init:
         condition: service_completed_successfully
     entrypoint: ["sh", "/pgbench_load.sh"]
+
+  # RDS Log Sync (CloudWatch Logs sync with pgBadger)
+  rds-log-sync:
+    image: amazon/aws-cli:latest
+    container_name: rds-log-sync
+    restart: unless-stopped
+    environment:
+      AWS_ACCESS_KEY_ID:     ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION:    ${AWS_REGION:-eu-central-1}
+      RDS_STAGING_PRIMARY_LOG_GROUP: ${RDS_STAGING_PRIMARY_LOG_GROUP}
+      RDS_STAGING_REPLICA_LOG_GROUP: ${RDS_STAGING_REPLICA_LOG_GROUP}
+      RDS_LOG_SYNC_INTERVAL: ${RDS_LOG_SYNC_INTERVAL:-3600}
+      LOG_DIR: /logs
+    volumes:
+      - ./postgres/logs:/logs
+      - ./rds/log_sync.sh:/log_sync.sh:ro
+    entrypoint: ["sh", "/log_sync.sh", "--watch"]
+    networks:
+      - pg-monitor-net
+
+  # RDS Staging Primary Exporter
+  rds-exporter-staging-primary:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: rds-exporter-staging-primary
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${RDS_EXPORTER_USER}:${RDS_EXPORTER_PASSWORD}@${RDS_STAGING_PRIMARY_HOST}:${RDS_STAGING_PRIMARY_PORT}/${RDS_STAGING_PRIMARY_DB}?sslmode=require"
+      PG_EXPORTER_EXTEND_QUERY_PATH: /etc/exporter/queries.yaml
+    volumes:
+      - ./exporter/queries.yaml:/etc/exporter/queries.yaml:ro
+    ports:
+      - "9188:9187"
+    networks:
+      - pg-monitor-net
+
+
+  # RDS Staging Replica Exporter
+  rds-exporter-staging-replica:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: rds-exporter-staging-replica
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${RDS_EXPORTER_USER}:${RDS_EXPORTER_PASSWORD}@${RDS_STAGING_REPLICA_HOST}:${RDS_STAGING_REPLICA_PORT}/${RDS_STAGING_REPLICA_DB}?sslmode=require"
+      PG_EXPORTER_EXTEND_QUERY_PATH: /etc/exporter/queries.yaml
+    volumes:
+      - ./exporter/queries.yaml:/etc/exporter/queries.yaml:ro
+    ports:
+      - "9189:9187"
+    networks:
+      - pg-monitor-net

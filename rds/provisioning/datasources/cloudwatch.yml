@@ -1,0 +1,29 @@
+# ============================================================
+#  pg-baseera — Grafana CloudWatch Datasource
+#  Provides access to AWS/RDS CloudWatch metrics
+#  Required IAM permissions: CloudWatchReadOnlyAccess
+# ============================================================
+
+apiVersion: 1
+
+datasources:
+  - name: CloudWatch
+    type: cloudwatch
+    access: proxy
+    editable: false
+    jsonData:
+      authType: keys
+      defaultRegion: ${AWS_REGION}
+      assumeRoleArn: ''
+      externalId: ''
+      customMetricsNamespaces: 'AWS/RDS'
+    secureJsonData:
+      accessKey: ${AWS_ACCESS_KEY_ID}
+      secretKey: ${AWS_SECRET_ACCESS_KEY}
+
+
+# pgBadger RDS Usage Note
+# When running pgBadger against RDS logs downloaded via log_sync.sh:
+#   pgbadger --format rds --outfile report.html <logfile>
+# The --format rds flag handles RDS-specific log formatting automatically.
+# No --prefix flag needed unlike self-hosted PostgreSQL.

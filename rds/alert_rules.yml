@@ -1,0 +1,142 @@
+# ============================================================
+#  pg-baseera RDS PostgreSQL Alert Rules.
+#  Add required alert rules in this file
+#  Covers: staging-primary, staging-replica
+# ============================================================
+
+groups:
+  - name: rds-postgres-alerts
+    interval: 30s
+    rules:
+
+      # PostgresqlDown
+      # Fires when postgres_exporter cannot reach PostgreSQL
+      - alert: PostgresqlDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down ({{ $labels.instance }})"
+          description: >
+            postgres_exporter cannot reach PostgreSQL on
+            {{ $labels.instance }} (job={{ $labels.job }}).
+            Has been down for more than 1 minute.
+
+      # PostgresqlConnectionsHigh
+      # Fires when active connections exceed 75% of max_connections
+      - alert: PostgresqlConnectionsHigh
+        expr: >
+          sum by (instance, job) (pg_stat_database_numbackends)
+          /
+          pg_settings_max_connections
+          * 100 > 75
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL connections high ({{ $labels.instance }})"
+          description: >
+            Active connections on {{ $labels.instance }} have exceeded
+            75% of max_connections for more than 5 minutes.
+            Current value: {{ $value | printf "%.1f" }}%
+
+      # PostgresqlDeadTuplesHigh
+      # Fires when dead tuples exceed 20% of total AND > 10,000
+      # Both conditions must be true to avoid false positives on small tables
+      - alert: PostgresqlDeadTuplesHigh
+        expr: >
+          (
+            pg_table_bloat_n_dead_tup > 10000
+          )
+          and
+          (
+            pg_table_bloat_n_dead_tup
+            /
+            (pg_table_bloat_n_live_tup + pg_table_bloat_n_dead_tup + 1)
+            * 100 > 20
+          )
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Dead tuples high on {{ $labels.tablename }} ({{ $labels.instance }})"
+          description: >
+            Table {{ $labels.schemaname }}.{{ $labels.tablename }}
+            on {{ $labels.instance }} has {{ $value }} dead tuples
+            exceeding 20% of total rows for more than 10 minutes.
+            Autovacuum may not be keeping up.
+
+      # PostgresqlDatabaseSizeLarge
+      # Fires when any database exceeds 25 GB
+      - alert: PostgresqlDatabaseSizeLarge
+        expr: pg_database_size_bytes > 25 * 1024 * 1024 * 1024
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "PostgreSQL database size large ({{ $labels.datname }})"
+          description: >
+            Database {{ $labels.datname }} on {{ $labels.instance }}
+            has exceeded 25 GB.
+            Current size: {{ $value | humanize1024 }}B
+
+      # PostgresqlReplicationLagHigh
+      # Fires when replication lag exceeds 30 seconds on replica
+      - alert: PostgresqlReplicationLagHigh
+        expr: pg_replication_lag_seconds > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL replication lag high ({{ $labels.instance }})"
+          description: >
+            Replication lag on {{ $labels.instance }} has exceeded
+            30 seconds for more than 5 minutes.
+            Current lag: {{ $value | printf "%.1f" }}s
+
+      # PostgresqlSlowQueries
+      # Fires when mean query execution time exceeds 1000ms
+      - alert: PostgresqlSlowQueries
+        expr: pg_stat_statements_top_mean_ms > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow queries detected ({{ $labels.instance }})"
+          description: >
+            Query on {{ $labels.instance }} has mean execution time
+            of {{ $value | printf "%.0f" }}ms (threshold: 1000ms).
+            Query: {{ $labels.query }}
+
+      # PostgresqlCacheHitRatioLow
+      # Fires when buffer cache hit ratio drops below 90%
+      # Template databases excluded
+      - alert: PostgresqlCacheHitRatioLow
+        expr: >
+          (
+            sum by (instance, job, datname) (
+              pg_stat_database_blks_hit{datname!~"template.*"}
+            )
+            /
+            (
+              sum by (instance, job, datname) (
+                pg_stat_database_blks_hit{datname!~"template.*"}
+              )
+              +
+              sum by (instance, job, datname) (
+                pg_stat_database_blks_read{datname!~"template.*"}
+              )
+              + 1
+            )
+          ) * 100 < 90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cache hit ratio low on {{ $labels.datname }} ({{ $labels.instance }})"
+          description: >
+            Buffer cache hit ratio for database {{ $labels.datname }}
+            on {{ $labels.instance }} has been below 90% for 10 minutes.
+            Current ratio: {{ $value | printf "%.2f" }}%
+            Healthy production value is 95-99%.
