@@ -1,0 +1,109 @@
+# ============================================================
+#  pg-baseera: pgBadger Kubernetes Deployment
+#  Runs standalone alongside the existing stack.
+#  Serves HTML reports on port 8080.
+#
+#  Apply with: kubectl apply -f . -n default
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgbadger
+  namespace: default
+  labels:
+    app: pgbadger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgbadger
+  template:
+    metadata:
+      labels:
+        app: pgbadger
+    spec:
+      containers:
+        - name: pgbadger
+          image: debian:trixie-slim
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              apt-get update -qq && \
+              apt-get install -y pgbadger busybox-static awscli && \
+              mkdir -p /reports /logs && \
+              while true; do
+                DATE=$(date +%Y-%m-%d)
+                LOG=/logs/postgresql-${DATE}.log
+
+
+                echo "[$(date)] Syncing logs from CloudWatch..."
+                aws logs get-log-events \
+                  --log-group-name "${PRIMARY_LOG_GROUP}" \
+                  --log-stream-name "$(aws logs describe-log-streams \
+                    --log-group-name ${PRIMARY_LOG_GROUP} \
+                    --order-by LastEventTime --descending \
+                    --query 'logStreams[0].logStreamName' \
+                    --output text --region ${AWS_REGION})" \
+                  --region "${AWS_REGION}" \
+                  --no-paginate \
+                  --output json | \
+                  python3 -c "
+              import sys, json
+              for e in json.load(sys.stdin).get('events',[]):
+                  msg = e.get('message','').rstrip()
+                  if msg: print(msg)
+              " > ${LOG}
+
+
+                echo "[$(date)] Generating pgBadger report..."
+                pgbadger --format rds \
+                  --outfile /reports/report-${DATE}.html \
+                  ${LOG} && \
+                ln -sf /reports/report-${DATE}.html /reports/latest.html
+
+
+                echo "[$(date)] Generating index..."
+                echo "<html><head><title>pgBadger Reports</title>" > /reports/index.html
+                echo "<style>body{font-family:monospace;background:#0d1117;color:#c9d1d9;padding:2rem;}</style></head><body>" >> /reports/index.html
+                echo "<h2>pgBadger RDS Reports</h2><ul>" >> /reports/index.html
+                for f in /reports/report-*.html; do
+                  fname=$(basename $f)
+                  echo "<li><a style='color:#58a6ff' href='/$fname'>$fname</a></li>" >> /reports/index.html
+                done
+                echo "</ul><a style='color:#3fb950' href='/latest.html'>Latest Report</a></body></html>" >> /reports/index.html
+
+
+                busybox httpd -f -p 8080 -h /reports &
+                HTTPD_PID=$!
+                sleep "${SYNC_INTERVAL:-3600}"
+                kill $HTTPD_PID 2>/dev/null || true
+              done
+          ports:
+            - containerPort: 8080
+          env:
+            - name: AWS_REGION
+              value: "eu-central-1"
+            - name: PRIMARY_LOG_GROUP
+              value: "/aws/rds/instance/staging-rds-pg/postgresql"
+            - name: SYNC_INTERVAL
+              value: "3600"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-cloudwatch-credentials
+                  key: access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-cloudwatch-credentials
+                  key: secret-access-key
+          volumeMounts:
+            - name: reports
+              mountPath: /reports
+            - name: logs
+              mountPath: /logs
+      volumes:
+        - name: reports
+          emptyDir: {}
+        - name: logs
+          emptyDir: {}

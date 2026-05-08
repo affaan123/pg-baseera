@@ -1,0 +1,21 @@
+# ============================================================
+#  pg-baseera: pgBadger Service
+#  Exposes pgBadger reports inside the cluster on port 8080.
+#  Add an Ingress on top of this to expose externally.
+# ============================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgbadger
+  namespace: default
+  labels:
+    app: pgbadger
+spec:
+  selector:
+    app: pgbadger
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP
