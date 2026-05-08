@@ -1,0 +1,51 @@
+# ============================================================
+#  pg-baseera: Grafana CloudWatch Datasource
+#
+#  The kube-prometheus-stack Grafana sidecar watches for
+#  ConfigMaps with label grafana_datasource: "1" and
+#  automatically provisions them.
+#
+#  Before applying, create the AWS credentials secret:
+#    kubectl create secret generic aws-cloudwatch-credentials \
+#      --from-literal=access-key-id=YOUR_ACCESS_KEY \
+#      --from-literal=secret-access-key=YOUR_SECRET_KEY \
+#      -n default
+#
+#  Apply with:
+#    kubectl apply -f grafana-cloudwatch-ds.yaml -n default
+# ============================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-cloudwatch-datasource
+  namespace: default
+  labels:
+    grafana_datasource: "1"
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+data:
+  cloudwatch-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: CloudWatch
+        type: cloudwatch
+        access: proxy
+        editable: false
+        jsonData:
+          authType: keys
+          defaultRegion: eu-central-1
+          customMetricsNamespaces: AWS/RDS
+        secureJsonData:
+          accessKey: $__env{AWS_ACCESS_KEY_ID}
+          secretKey: $__env{AWS_SECRET_ACCESS_KEY}
+---
+# ── AWS credentials secret (fill in before applying) ────────
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-cloudwatch-credentials
+  namespace: default
+type: Opaque
+stringData:
+  access-key-id: "REPLACE_WITH_ACCESS_KEY"
+  secret-access-key: "REPLACE_WITH_SECRET_KEY"

@@ -1,0 +1,157 @@
+# ============================================================
+#  pg-baseera: PrometheusRule CRD
+#  Apply with: kubectl apply -f prometheus-rules.yaml -n default
+#
+#  The Prometheus Operator in kube-prometheus-stack picks this
+#  up automatically via the label:
+#    prometheus: kube-prometheus
+#    role: alert-rules
+#
+#  Matches alert rules from NX Infrastructure RDS Audit Report
+# ============================================================
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pg-baseera-rds-alerts
+  namespace: default
+  labels:
+    # These labels must match the ruleSelector in your
+    # kube-prometheus-stack values.yaml:
+    #   prometheus.prometheusSpec.ruleSelector
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: rds-postgres-alerts
+      interval: 30s
+      rules:
+
+
+        # 1 PostgresqlDown
+        - alert: PostgresqlDown
+          expr: pg_up == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PostgreSQL is down ({{ $labels.instance }})"
+            description: >
+              postgres_exporter cannot reach PostgreSQL on
+              {{ $labels.instance }} (job={{ $labels.job }}).
+              Has been down for more than 1 minute.
+
+
+        # 2 PostgresqlConnectionsHigh
+        - alert: PostgresqlConnectionsHigh
+          expr: >
+            sum by (instance, job) (pg_stat_database_numbackends)
+            /
+            pg_settings_max_connections
+            * 100 > 75
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PostgreSQL connections high ({{ $labels.instance }})"
+            description: >
+              Active connections on {{ $labels.instance }} have
+              exceeded 75% of max_connections for more than 5 minutes.
+              Current value: {{ $value | printf "%.1f" }}%
+
+
+        # 3 PostgresqlDeadTuplesHigh
+        - alert: PostgresqlDeadTuplesHigh
+          expr: >
+            (pg_stat_user_tables_n_dead_tup > 10000)
+            and
+            (
+              pg_stat_user_tables_n_dead_tup
+              /
+              (pg_stat_user_tables_n_live_tup
+               + pg_stat_user_tables_n_dead_tup + 1)
+              * 100 > 20
+            )
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Dead tuples high on {{ $labels.relname }} ({{ $labels.instance }})"
+            description: >
+              Table {{ $labels.schemaname }}.{{ $labels.relname }}
+              on {{ $labels.instance }} has {{ $value }} dead tuples
+              exceeding 20% of total rows for more than 10 minutes.
+              Autovacuum may not be keeping up.
+
+
+        # 4 PostgresqlDatabaseSizeLarge
+        - alert: PostgresqlDatabaseSizeLarge
+          expr: pg_database_size_bytes > 25 * 1024 * 1024 * 1024
+          for: 5m
+          labels:
+            severity: info
+          annotations:
+            summary: "PostgreSQL database size large ({{ $labels.datname }})"
+            description: >
+              Database {{ $labels.datname }} on {{ $labels.instance }}
+              has exceeded 25 GB.
+              Current size: {{ $value | humanize1024 }}B
+
+
+        # 5 PostgresqlReplicationLagHigh
+        - alert: PostgresqlReplicationLagHigh
+          expr: pg_replication_lag > 30
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PostgreSQL replication lag high ({{ $labels.instance }})"
+            description: >
+              Replication lag on {{ $labels.instance }} has exceeded
+              30 seconds for more than 5 minutes.
+              Current lag: {{ $value | printf "%.1f" }}s
+
+
+        # 6 PostgresqlSlowQueries
+        - alert: PostgresqlSlowQueries
+          expr: >
+            pg_stat_statements_top_mean_exec_time > 1000
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Slow queries detected ({{ $labels.instance }})"
+            description: >
+              Query on {{ $labels.instance }} has mean execution
+              time of {{ $value | printf "%.0f" }}ms (threshold: 1000ms).
+              Query: {{ $labels.query }}
+
+
+        # 7 PostgresqlCacheHitRatioLow
+        - alert: PostgresqlCacheHitRatioLow
+          expr: >
+            (
+              sum by (instance, job, datname) (
+                pg_stat_database_blks_hit{datname!~"template.*"}
+              )
+              /
+              (
+                sum by (instance, job, datname) (
+                  pg_stat_database_blks_hit{datname!~"template.*"}
+                )
+                +
+                sum by (instance, job, datname) (
+                  pg_stat_database_blks_read{datname!~"template.*"}
+                )
+                + 1
+              )
+            ) * 100 < 90
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Cache hit ratio low on {{ $labels.datname }} ({{ $labels.instance }})"
+            description: >
+              Buffer cache hit ratio for {{ $labels.datname }}
+              on {{ $labels.instance }} has been below 90% for 10 minutes.
+              Current ratio: {{ $value | printf "%.2f" }}%
+              Healthy production value is 95-99%.

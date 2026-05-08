@@ -1,0 +1,69 @@
+# ============================================================
+#  pg-baseera: pgBadger CronJob
+#  Alternative to the always-on deployment above.
+#  Generates a fresh report every hour on a schedule.
+#  Use this if you prefer scheduled reports over
+#  a continuously running pod.
+# ============================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pgbadger-report
+  namespace: default
+spec:
+  schedule: "0 * * * *"    # every hour at :00
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: pgbadger
+              image: debian:trixie-slim
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  apt-get update -qq && \
+                  apt-get install -y pgbadger awscli python3 && \
+                  DATE=$(date +%Y-%m-%d) && \
+                  LOG=/tmp/postgresql-${DATE}.log && \
+                  aws logs get-log-events \
+                    --log-group-name "${PRIMARY_LOG_GROUP}" \
+                    --log-stream-name "$(aws logs describe-log-streams \
+                      --log-group-name ${PRIMARY_LOG_GROUP} \
+                      --order-by LastEventTime --descending \
+                      --query 'logStreams[0].logStreamName' \
+                      --output text --region ${AWS_REGION})" \
+                    --region "${AWS_REGION}" \
+                    --no-paginate \
+                    --output json | \
+                    python3 -c "
+              import sys, json
+              for e in json.load(sys.stdin).get('events',[]):
+                  msg = e.get('message','').rstrip()
+                  if msg: print(msg)
+              " > ${LOG} && \
+                  pgbadger --format rds \
+                    --outfile /reports/report-${DATE}.html \
+                    ${LOG}
+              env:
+                - name: AWS_REGION
+                  value: "eu-central-1"
+                - name: PRIMARY_LOG_GROUP
+                  value: "/aws/rds/instance/staging-rds-pg/postgresql"
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-cloudwatch-credentials
+                      key: access-key-id
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-cloudwatch-credentials
+                      key: secret-access-key
+              volumeMounts:
+                - name: reports
+                  mountPath: /reports
+          volumes:
+            - name: reports
+              emptyDir: {}
