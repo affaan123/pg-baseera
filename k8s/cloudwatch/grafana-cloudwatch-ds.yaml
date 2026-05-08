@@ -39,7 +39,7 @@ data:
           accessKey: $__env{AWS_ACCESS_KEY_ID}
           secretKey: $__env{AWS_SECRET_ACCESS_KEY}
 ---
-# ── AWS credentials secret (fill in before applying) ────────
+# AWS credentials secret (fill in before applying)
 apiVersion: v1
 kind: Secret
 metadata:

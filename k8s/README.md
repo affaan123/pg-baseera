@@ -5,7 +5,7 @@
 ![AWS](https://img.shields.io/badge/AWS-CloudWatch-FF9900?logo=amazonaws)
 
 Configuration package for teams already running **kube-prometheus-stack** on Kubernetes.
-Extends your existing stack with RDS PostgreSQL monitoring and pgBadger slow query reports —
+Extends your existing stack with RDS PostgreSQL monitoring and pgBadger slow query reports
 without replacing or duplicating anything you already have.
 
 ---
