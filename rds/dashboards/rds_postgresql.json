@@ -1,0 +1,561 @@
+{
+  "title": "RDS PostgreSQL Staging",
+  "uid": "rds-staging-01",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "tags": ["rds", "postgresql", "staging"],
+  "templating": {
+    "list": [
+      {
+        "name": "primary_instance",
+        "type": "constant",
+        "value": "staging-rds-pg",
+        "hide": 2
+      },
+      {
+        "name": "replica_instance",
+        "type": "constant",
+        "value": "staging-rds-pg-replica",
+        "hide": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "☁️ CloudWatch CPU & Load",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "id": 2, "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "type": "timeseries",
+      "title": "CPU Utilization % (Primary & Replica)",
+      "datasource": "CloudWatch",
+      "targets": [
+        {
+          "alias": "Primary CPU",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg" },
+          "expression": "",
+          "id": "primary_cpu",
+          "matchExact": true,
+          "metricEditorMode": 0,
+          "metricName": "CPUUtilization",
+          "metricQueryType": 0,
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "A",
+          "region": "eu-central-1",
+          "statistic": "Average"
+        },
+        {
+          "alias": "Replica CPU",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg-replica" },
+          "expression": "",
+          "id": "replica_cpu",
+          "matchExact": true,
+          "metricEditorMode": 0,
+          "metricName": "CPUUtilization",
+          "metricQueryType": 0,
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "B",
+          "region": "eu-central-1",
+          "statistic": "Average"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "red", "value": 95 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3, "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "type": "timeseries",
+      "title": "DB Load: Average Active Sessions",
+      "datasource": "CloudWatch",
+      "targets": [
+        {
+          "alias": "DB Load Primary",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg" },
+          "metricName": "DBLoad",
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "A",
+          "region": "eu-central-1",
+          "statistic": "Average"
+        },
+        {
+          "alias": "DB Load CPU Primary",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg" },
+          "metricName": "DBLoadCPU",
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "B",
+          "region": "eu-central-1",
+          "statistic": "Average"
+        },
+        {
+          "alias": "DB Load Non-CPU Primary",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg" },
+          "metricName": "DBLoadNonCPU",
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "C",
+          "region": "eu-central-1",
+          "statistic": "Average"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 4 },
+              { "color": "red", "value": 8 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "row",
+      "title": "☁️ CloudWatch Memory & Swap",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "collapsed": false
+    },
+    {
+      "id": 5, "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "type": "timeseries",
+      "title": "Freeable Memory (Primary + Replica)",
+      "datasource": "CloudWatch",
+      "targets": [
+        {
+          "alias": "Primary Freeable Memory",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg" },
+          "metricName": "FreeableMemory",
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "A",
+          "region": "eu-central-1",
+          "statistic": "Average"
+        },
+        {
+          "alias": "Replica Freeable Memory",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg-replica" },
+          "metricName": "FreeableMemory",
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "B",
+          "region": "eu-central-1",
+          "statistic": "Average"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 2147483648 },
+              { "color": "green", "value": 4294967296 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 6, "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "type": "timeseries",
+      "title": "Swap Usage (Primary)",
+      "datasource": "CloudWatch",
+      "targets": [
+        {
+          "alias": "Swap Usage",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg" },
+          "metricName": "SwapUsage",
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "A",
+          "region": "eu-central-1",
+          "statistic": "Average"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 268435456 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "☁️ CloudWatch Storage & IO",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+      "collapsed": false
+    },
+    {
+      "id": 8, "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
+      "type": "timeseries",
+      "title": "Free Storage Space (Primary & Replica)",
+      "datasource": "CloudWatch",
+      "targets": [
+        {
+          "alias": "Primary Free Storage",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg" },
+          "metricName": "FreeStorageSpace",
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "A",
+          "region": "eu-central-1",
+          "statistic": "Average"
+        },
+        {
+          "alias": "Replica Free Storage",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg-replica" },
+          "metricName": "FreeStorageSpace",
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "B",
+          "region": "eu-central-1",
+          "statistic": "Average"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 21474836480 },
+              { "color": "green", "value": 53687091200 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 9, "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+      "type": "timeseries",
+      "title": "Read / Write Latency (Primary)",
+      "datasource": "CloudWatch",
+      "targets": [
+        {
+          "alias": "Read Latency",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg" },
+          "metricName": "ReadLatency",
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "A",
+          "region": "eu-central-1",
+          "statistic": "Average"
+        },
+        {
+          "alias": "Write Latency",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg" },
+          "metricName": "WriteLatency",
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "B",
+          "region": "eu-central-1",
+          "statistic": "Average"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.02 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 10, "gridPos": { "h": 8, "w": 12, "x": 0, "y": 27 },
+      "type": "timeseries",
+      "title": "Disk Queue Depth (Primary)",
+      "datasource": "CloudWatch",
+      "targets": [
+        {
+          "alias": "Disk Queue Depth",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg" },
+          "metricName": "DiskQueueDepth",
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "A",
+          "region": "eu-central-1",
+          "statistic": "Average"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 32 },
+              { "color": "red", "value": 64 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 11, "gridPos": { "h": 8, "w": 12, "x": 12, "y": 27 },
+      "type": "timeseries",
+      "title": "Read / Write IOPS (Primary)",
+      "datasource": "CloudWatch",
+      "targets": [
+        {
+          "alias": "Read IOPS",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg" },
+          "metricName": "ReadIOPS",
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "A",
+          "region": "eu-central-1",
+          "statistic": "Average"
+        },
+        {
+          "alias": "Write IOPS",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg" },
+          "metricName": "WriteIOPS",
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "B",
+          "region": "eu-central-1",
+          "statistic": "Average"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "iops" }}
+    },
+    {
+      "id": 12,
+      "type": "row",
+      "title": "☁️ CloudWatch Connections & Replication",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 35 },
+      "collapsed": false
+    },
+    {
+      "id": 13, "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+      "type": "timeseries",
+      "title": "Database Connections (Primary + Replica)",
+      "datasource": "CloudWatch",
+      "targets": [
+        {
+          "alias": "Primary Connections",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg" },
+          "metricName": "DatabaseConnections",
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "A",
+          "region": "eu-central-1",
+          "statistic": "Sum"
+        },
+        {
+          "alias": "Replica Connections",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg-replica" },
+          "metricName": "DatabaseConnections",
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "B",
+          "region": "eu-central-1",
+          "statistic": "Sum"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 4000 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 14, "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+      "type": "timeseries",
+      "title": "Replica Lag (seconds)",
+      "datasource": "CloudWatch",
+      "targets": [
+        {
+          "alias": "Replica Lag",
+          "dimensions": { "DBInstanceIdentifier": "staging-rds-pg-replica" },
+          "metricName": "ReplicaLag",
+          "namespace": "AWS/RDS",
+          "period": "300",
+          "refId": "A",
+          "region": "eu-central-1",
+          "statistic": "Average"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 30 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 15,
+      "type": "row",
+      "title": "🐘 Prometheus PostgreSQL Internals",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 44 },
+      "collapsed": false
+    },
+    {
+      "id": 16, "gridPos": { "h": 8, "w": 12, "x": 0, "y": 45 },
+      "type": "timeseries",
+      "title": "TPS — Commits & Rollbacks (Staging Primary)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "rate(pg_stat_database_xact_commit{job=\"rds_staging_primary\", datname=\"main\"}[1m])",
+          "legendFormat": "Commits/s"
+        },
+        {
+          "expr": "rate(pg_stat_database_xact_rollback{job=\"rds_staging_primary\", datname=\"main\"}[1m])",
+          "legendFormat": "Rollbacks/s"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" }}
+    },
+    {
+      "id": 17, "gridPos": { "h": 8, "w": 12, "x": 12, "y": 45 },
+      "type": "timeseries",
+      "title": "Cache Hit Ratio % (Staging Primary)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "round(sum(pg_stat_database_blks_hit{job=\"rds_staging_primary\", datname=\"main\"}) / (sum(pg_stat_database_blks_hit{job=\"rds_staging_primary\", datname=\"main\"}) + sum(pg_stat_database_blks_read{job=\"rds_staging_primary\", datname=\"main\"}) + 1) * 100, 0.01)",
+          "legendFormat": "Cache Hit %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 90 },
+              { "color": "green", "value": 99 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 18, "gridPos": { "h": 8, "w": 12, "x": 0, "y": 53 },
+      "type": "timeseries",
+      "title": "Replication Lag seconds (Prometheus)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "pg_replication_lag_seconds{job=\"rds_staging_replica\"}",
+          "legendFormat": "Replication Lag (s)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 30 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 19, "gridPos": { "h": 8, "w": 12, "x": 12, "y": 53 },
+      "type": "timeseries",
+      "title": "Dead Tuples: Top Tables (Staging Primary)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "topk(5, pg_table_bloat_n_dead_tup{job=\"rds_staging_primary\"})",
+          "legendFormat": "{{tablename}}"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "🐘 Prometheus Slow Queries",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 61 },
+      "collapsed": false
+    },
+    {
+      "id": 21, "gridPos": { "h": 8, "w": 24, "x": 0, "y": 62 },
+      "type": "table",
+      "title": "Top 10 Slowest Queries — Mean Execution Time (Staging Primary)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "topk(10, pg_stat_statements_top_mean_ms{job=\"rds_staging_primary\"})",
+          "legendFormat": "{{query}}",
+          "instant": true
+        }
+      ],
+      "transformations": [{ "id": "labelsToFields", "options": {} }],
+      "fieldConfig": { "defaults": { "unit": "ms" }}
+    },
+    {
+      "id": 22, "gridPos": { "h": 8, "w": 24, "x": 0, "y": 70 },
+      "type": "table",
+      "title": "Top 20 Bloated Tables. Dead Tuples (Staging Primary)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "topk(20, pg_table_bloat_n_dead_tup{job=\"rds_staging_primary\"})",
+          "legendFormat": "{{schemaname}}.{{tablename}}",
+          "instant": true
+        }
+      ],
+      "transformations": [{ "id": "labelsToFields", "options": {} }],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10000 },
+              { "color": "red", "value": 100000 }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
