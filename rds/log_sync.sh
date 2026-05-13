@@ -70,12 +70,27 @@ sync_log_group() {
 
 
     # Download each stream
+    # Check if OS is macOS or Linux to handle date conversion
+    if date --version >/dev/null 2>&1; then
+        # GNU/Linux
+        START_TIME=$(date -d "$DATE 00:00:00" +%s%3N)
+        END_TIME=$(date -d "$DATE 23:59:59" +%s%3N)
+    else
+        # macOS / BSD
+        # Convert to seconds then multiply by 1000 for milliseconds
+        START_TIME=$(($(date -j -f "%Y-%m-%d %H:%M:%S" "$DATE 00:00:00" +%s) * 1000))
+        END_TIME=$(($(date -j -f "%Y-%m-%d %H:%M:%S" "$DATE 23:59:59" +%s) * 1000))
+    fi
+
+
     echo "$STREAMS" | while IFS= read -r STREAM; do
         [ -z "$STREAM" ] && continue
         echo "[$(date '+%H:%M:%S')]   Stream: $STREAM"
         aws logs get-log-events \
             --log-group-name "$LOG_GROUP" \
             --log-stream-name "$STREAM" \
+            --start-time "$START_TIME" \
+            --end-time "$END_TIME" \
             --region "$AWS_REGION" \
             --no-paginate \
             --output json 2>/dev/null | \
@@ -113,7 +128,7 @@ run_sync() {
     echo ""
     echo "Sync complete. To generate pgBadger report run:"
     echo "  pgbadger --format rds \\"
-    echo "    --outfile /reports/rds-report-${TARGET_DATE}.html \\"
+    echo "    --outfile pgbadger/reports/rds-report-${TARGET_DATE}.html \\"
     echo "    ${LOG_DIR}/postgresql-staging-primary-${TARGET_DATE}.log"
 }
 
